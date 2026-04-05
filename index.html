@@ -1,1 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MRL KPI Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f3;
+      min-height: 100vh;
+      padding: 2rem 1rem;
+      color: #2c2c2a;
+    }
+    .container { max-width: 860px; margin: 0 auto; }
+    .top-row {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 1.75rem;
+    }
+    .dash-title { font-size: 20px; font-weight: 500; color: #2c2c2a; }
+    .dash-sub { font-size: 13px; color: #888780; margin-top: 2px; }
+    .right-header { display: flex; align-items: center; gap: 10px; }
+    .status-row { display: flex; align-items: center; gap: 6px; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: #1D9E75; flex-shrink: 0; }
+    .dot.err { background: #E24B4A; }
+    .st-txt { font-size: 12px; color: #888780; }
+    .refresh-btn {
+      font-size: 12px; color: #5F5E5A;
+      border: 0.5px solid #b4b2a9; background: transparent;
+      border-radius: 8px; padding: 5px 14px; cursor: pointer;
+      transition: background 0.15s;
+    }
+    .refresh-btn:hover { background: #e8e8e4; }
+    .gauges-row {
+      display: grid; grid-template-columns: repeat(3, minmax(0,1fr));
+      gap: 16px; margin-bottom: 16px;
+    }
+    .bottom-row {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    }
+    .card {
+      background: #fff; border: 0.5px solid #d3d1c7;
+      border-radius: 12px; padding: 1.1rem;
+      display: flex; flex-direction: column; align-items: center;
+    }
+    .card-label {
+      font-size: 11px; font-weight: 500; color: #888780;
+      text-transform: uppercase; letter-spacing: 0.07em;
+      margin-bottom: 8px; align-self: flex-start;
+    }
+    .gauge-wrap { width: 100%; max-width: 190px; }
+    .gauge-val { font-size: 26px; font-weight: 500; color: #2c2c2a; margin-top: 4px; }
+    .info-card {
+      background: #fff; border: 0.5px solid #d3d1c7;
+      border-radius: 12px; padding: 1.1rem 1.4rem;
+    }
+    .info-label {
+      font-size: 11px; font-weight: 500; color: #888780;
+      text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 8px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .blynk-badge {
+      font-size: 10px; color: #0F6E56; background: #E1F5EE;
+      padding: 2px 7px; border-radius: 4px; font-weight: 500;
+    }
+    .info-val { font-size: 28px; font-weight: 500; color: #2c2c2a; }
+    .info-unit { font-size: 13px; color: #888780; margin-top: 3px; }
+    .date-card {
+      background: #f1efe8; border-radius: 12px; padding: 1.1rem 1.4rem;
+    }
+    .date-val { font-size: 22px; font-weight: 500; color: #2c2c2a; margin-top: 4px; }
+    .skeleton {
+      display: inline-block; width: 70px; height: 24px;
+      background: #d3d1c7; border-radius: 4px;
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:.4} 50%{opacity:.9} }
+    @media (max-width: 600px) {
+      .gauges-row { grid-template-columns: 1fr; }
+      .bottom-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <div class="top-row">
+    <div>
+      <div class="dash-title">MRL soil monitoring</div>
+      <div class="dash-sub">Auto-refreshes every hour</div>
+    </div>
+    <div class="right-header">
+      <div class="status-row">
+        <div class="dot" id="sdot"></div>
+        <span class="st-txt" id="stxt">Loading...</span>
+      </div>
+      <button class="refresh-btn" onclick="fetchAll()">Refresh</button>
+    </div>
+  </div>
+
+  <div class="gauges-row">
+    <div class="card">
+      <div class="card-label">Compaction</div>
+      <div class="gauge-wrap"><svg id="g-compaction" viewBox="0 0 180 110" width="100%"></svg></div>
+      <div class="gauge-val" id="v-compaction"><span class="skeleton"></span></div>
+    </div>
+    <div class="card">
+      <div class="card-label">Density</div>
+      <div class="gauge-wrap"><svg id="g-density" viewBox="0 0 180 110" width="100%"></svg></div>
+      <div class="gauge-val" id="v-density"><span class="skeleton"></span></div>
+    </div>
+    <div class="card">
+      <div class="card-label">Soil</div>
+      <div class="gauge-wrap"><svg id="g-soil" viewBox="0 0 180 110" width="100%"></svg></div>
+      <div class="gauge-val" id="v-soil"><span class="skeleton"></span></div>
+    </div>
+  </div>
+
+  <div class="bottom-row">
+    <div class="info-card">
+      <div class="info-label">
+        NDCR load
+        <span class="blynk-badge">Blynk</span>
+      </div>
+      <div class="info-val" id="v-blynk"><span class="skeleton"></span></div>
+      <div class="info-unit" id="u-blynk">live reading</div>
+    </div>
+    <div class="date-card">
+      <div class="info-label">Reporting date</div>
+      <div class="date-val" id="v-date"><span class="skeleton"></span></div>
+      <div class="info-unit" style="margin-top:4px;font-size:12px;color:#888780;">Last manual update</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const CONFIG = {
+    GITHUB_RAW: "https://raw.githubusercontent.com/rrafiee62/MRL-Dashboard/main/data.txt",
+    BLYNK_TOKEN: "QqLBzn4ekaxI8ot_c-64KUkAgZuJMxY1",
+    BLYNK_PIN: "v0",
+  };
+
+  function describeArc(cx, cy, r, startDeg, endDeg) {
+    const toR = d => d * Math.PI / 180;
+    const x1 = cx + r * Math.cos(toR(startDeg)), y1 = cy + r * Math.sin(toR(startDeg));
+    const x2 = cx + r * Math.cos(toR(endDeg)),   y2 = cy + r * Math.sin(toR(endDeg));
+    const large = (endDeg - startDeg + 360) % 360 > 180 ? 1 : 0;
+    return `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`;
+  }
+
+  function drawGauge(svgId, value, segments, rawMax) {
+    const svg = document.getElementById(svgId);
+    svg.innerHTML = "";
+    const ns = "http://www.w3.org/2000/svg";
+    const cx = 90, cy = 95, r = 72;
+
+    function mkPath(d, stroke, sw) {
+      const p = document.createElementNS(ns, "path");
+      p.setAttribute("d", d); p.setAttribute("fill", "none");
+      p.setAttribute("stroke", stroke); p.setAttribute("stroke-width", sw);
+      p.setAttribute("stroke-linecap", "butt");
+      return p;
+    }
+
+    svg.appendChild(mkPath(describeArc(cx, cy, r, 180, 360), "#e0ddd6", 14));
+
+    segments.forEach(seg => {
+      const s = 180 + (seg.from / rawMax) * 180;
+      const e = 180 + (seg.to / rawMax) * 180;
+      if (Math.abs(e - s) < 0.1) return;
+      svg.appendChild(mkPath(describeArc(cx, cy, r, s, e), seg.color, 14));
+    });
+
+    const norm = Math.max(0, Math.min(value, rawMax)) / rawMax;
+    const needleDeg = 180 + norm * 180;
+    const nRad = needleDeg * Math.PI / 180;
+    const nx = cx + 62 * Math.cos(nRad), ny = cy + 62 * Math.sin(nRad);
+    const bx = cx + 10 * Math.cos(nRad + Math.PI), by = cy + 10 * Math.sin(nRad + Math.PI);
+
+    const needle = document.createElementNS(ns, "line");
+    needle.setAttribute("x1", bx); needle.setAttribute("y1", by);
+    needle.setAttribute("x2", nx); needle.setAttribute("y2", ny);
+    needle.setAttribute("stroke", "#2c2c2a"); needle.setAttribute("stroke-width", "2.5");
+    needle.setAttribute("stroke-linecap", "round");
+    svg.appendChild(needle);
+
+    const hub = document.createElementNS(ns, "circle");
+    hub.setAttribute("cx", cx); hub.setAttribute("cy", cy);
+    hub.setAttribute("r", "5"); hub.setAttribute("fill", "#2c2c2a");
+    svg.appendChild(hub);
+
+    const mn = document.createElementNS(ns, "text");
+    mn.setAttribute("x", "15"); mn.setAttribute("y", "108");
+    mn.setAttribute("font-size", "10"); mn.setAttribute("fill", "#b4b2a9");
+    mn.setAttribute("text-anchor", "middle"); mn.textContent = "0";
+    svg.appendChild(mn);
+
+    const mx = document.createElementNS(ns, "text");
+    mx.setAttribute("x", "165"); mx.setAttribute("y", "108");
+    mx.setAttribute("font-size", "10"); mx.setAttribute("fill", "#b4b2a9");
+    mx.setAttribute("text-anchor", "middle"); mx.textContent = rawMax;
+    svg.appendChild(mx);
+  }
+
+  const COMPACTION_SEGS = [
+    { from: 0,   to: 0.7, color: "#E24B4A" },
+    { from: 0.7, to: 0.9, color: "#EF9F27" },
+    { from: 0.9, to: 1,   color: "#639922" },
+  ];
+  const DENSITY_SEGS = [
+    { from: 0,    to: 0.7,  color: "#E24B4A" },
+    { from: 0.7,  to: 0.79, color: "#EF9F27" },
+    { from: 0.79, to: 1,    color: "#639922" },
+  ];
+  const SOIL_SEGS = [
+    { from: 0,  to: 10,  color: "#639922" },
+    { from: 10, to: 15,  color: "#EF9F27" },
+    { from: 15, to: 100, color: "#E24B4A" },
+  ];
+
+  function renderCard(id, val, segs, rawMax, display) {
+    drawGauge("g-" + id, val, segs, rawMax);
+    document.getElementById("v-" + id).textContent = display;
+  }
+
+  function setStatus(ok, msg) {
+    document.getElementById("sdot").className = "dot" + (ok ? "" : " err");
+    document.getElementById("stxt").textContent = msg;
+  }
+
+  async function fetchData() {
+    const res = await fetch(CONFIG.GITHUB_RAW + "?t=" + Date.now());
+    if (!res.ok) throw new Error("Failed to fetch data.txt");
+    const text = await res.text();
+    const data = {};
+    text.split("\n").forEach(line => {
+      const idx = line.indexOf(",");
+      if (idx < 0) return;
+      data[line.slice(0, idx).trim().toLowerCase()] = line.slice(idx + 1).trim();
+    });
+    return data;
+  }
+
+  async function fetchBlynk() {
+    const url = `https://blynk.cloud/external/api/get?token=${CONFIG.BLYNK_TOKEN}&${CONFIG.BLYNK_PIN}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("Blynk fetch failed");
+    return res.text();
+  }
+
+  async function fetchAll() {
+    setStatus(true, "Fetching...");
+    const now = new Date().toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit" });
+    const [data, blynk] = await Promise.allSettled([fetchData(), fetchBlynk()]);
+
+    if (data.status === "fulfilled" && data.value) {
+      const d = data.value;
+      if (d.compaction) { const v = parseFloat(d.compaction); renderCard("compaction", v, COMPACTION_SEGS, 1, v.toFixed(2)); }
+      if (d.density)    { const v = parseFloat(d.density);    renderCard("density",    v, DENSITY_SEGS,    1, v.toFixed(2)); }
+      if (d.soil)       { const v = parseFloat(d.soil);       renderCard("soil",       v, SOIL_SEGS,     100, v.toFixed(1)); }
+      if (d.date) document.getElementById("v-date").textContent = d.date;
+    }
+
+    if (blynk.status === "fulfilled") {
+      const bv = parseFloat(blynk.value);
+      document.getElementById("v-blynk").textContent = isNaN(bv) ? "—" : bv.toFixed(2);
+    } else {
+      document.getElementById("v-blynk").textContent = "—";
+      document.getElementById("u-blynk").textContent = "unavailable";
+    }
+
+    const bothOk = data.status === "fulfilled" && blynk.status === "fulfilled";
+    setStatus(bothOk, bothOk ? "Updated " + now : "Partial update " + now);
+  }
+
+  fetchAll();
+  setInterval(fetchAll, 60 * 60 * 1000);
+</script>
+</body>
+</html>
 
