@@ -19,16 +19,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Fetch Blynk v0 pin and append to CSV
+      - name: Fetch Blynk V0 pin and append to CSV
         env:
           BLYNK_TOKEN: ${{ secrets.BLYNK_TOKEN }}
         run: |
           CSV_FILE="data/blynk_log.csv"
           BLYNK_SERVER="blynk.cloud"
 
-          RESPONSE=$(curl -s "https://${BLYNK_SERVER}/external/api/get?token=${BLYNK_TOKEN}&pin=v0")
+          RESPONSE=$(curl -s "https://${BLYNK_SERVER}/external/api/get?token=${BLYNK_TOKEN}&V0")
           echo "Raw API response: ${RESPONSE}"
-          echo "Token length: ${#BLYNK_TOKEN}"
+
+          # Extract just the number from the JSON array e.g. ["23.4"] -> 23.4
+          VALUE=$(echo "$RESPONSE" | tr -d '[]"')
+          echo "Extracted value: ${VALUE}"
 
           TIMESTAMP=$(TZ="Australia/Melbourne" date +"%Y-%m-%dT%H:%M:%S %Z")
 
@@ -37,8 +40,8 @@ jobs:
             echo "timestamp,value" > "$CSV_FILE"
           fi
 
-          echo "${TIMESTAMP},${RESPONSE}" >> "$CSV_FILE"
-          echo "Logged: ${TIMESTAMP} = ${RESPONSE}"
+          echo "${TIMESTAMP},${VALUE}" >> "$CSV_FILE"
+          echo "Logged: ${TIMESTAMP} = ${VALUE}"
 
       - name: Commit and push updated CSV
         run: |
@@ -48,6 +51,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "chore: log Blynk v0 at $(TZ="Australia/Melbourne" date +'%Y-%m-%dT%H:%M:%S %Z')"
+            git commit -m "chore: log Blynk V0 at $(TZ="Australia/Melbourne" date +'%Y-%m-%dT%H:%M:%S %Z')"
             git push
           fi
