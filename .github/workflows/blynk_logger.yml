@@ -2,7 +2,7 @@ name: Log Blynk V0 Data
 
 on:
   schedule:
-    - cron: '55 * * * *'   # every hour at :55 UTC = :55 Melbourne time
+    - cron: '54 * * * *'   # every hour at :55 UTC = :55 Melbourne time
   workflow_dispatch:        # allows manual trigger from GitHub Actions UI
 
 jobs:
