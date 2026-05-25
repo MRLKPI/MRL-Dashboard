@@ -25,6 +25,7 @@ jobs:
           BLYNK_SERVER="blynk.cloud"
 
           RESPONSE=$(curl -s "https://${BLYNK_SERVER}/external/api/get?token=${BLYNK_TOKEN}&${PIN}")
+echo "Raw API response: ${RESPONSE}"
 
           TIMESTAMP=$(TZ="Australia/Melbourne" date +"%Y-%m-%dT%H:%M:%S %Z")
 
