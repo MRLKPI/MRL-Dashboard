@@ -24,14 +24,10 @@ jobs:
           BLYNK_TOKEN: ${{ secrets.BLYNK_TOKEN }}
         run: |
           CSV_FILE="data/blynk_log.csv"
-          BLYNK_SERVER="blynk.cloud"
+          BLYNK_SERVER="sgp1.blynk.cloud"
 
-          echo "Testing connection to blynk.cloud..."
-          curl -v "https://${BLYNK_SERVER}/external/api/get?token=${BLYNK_TOKEN}&V0" 2>&1
-
-          echo "---"
-          RESPONSE=$(curl -s --max-time 10 "https://${BLYNK_SERVER}/external/api/get?token=${BLYNK_TOKEN}&V0")
-          echo "Raw API response: [${RESPONSE}]"
+          RESPONSE=$(curl -s "https://${BLYNK_SERVER}/external/api/get?token=${BLYNK_TOKEN}&V0")
+          echo "Raw API response: ${RESPONSE}"
 
           VALUE=$(echo "$RESPONSE" | tr -d '[]"')
           echo "Extracted value: ${VALUE}"
