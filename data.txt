@@ -1,5 +1,5 @@
 Date,25 May 2026
 Compaction,0.89
 Density,0.86
-Soil,0.15
+Soil,15
 MTDSoil,56
