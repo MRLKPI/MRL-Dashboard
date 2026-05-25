@@ -1,0 +1,53 @@
+name: Log Blynk V0 Data
+
+on:
+  schedule:
+    - cron: '55 * * * *'
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  log-blynk:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Fetch Blynk V0 pin and append to CSV
+        env:
+          BLYNK_TOKEN: ${{ secrets.BLYNK_TOKEN }}
+        run: |
+          PIN="V0"
+          CSV_FILE="data/blynk_log.csv"
+          BLYNK_SERVER="blynk.cloud"
+
+          RESPONSE=$(curl -s "https://${BLYNK_SERVER}/external/api/get?token=${BLYNK_TOKEN}&${PIN}")
+          echo "Raw API response: ${RESPONSE}"
+
+          TIMESTAMP=$(TZ="Australia/Melbourne" date +"%Y-%m-%dT%H:%M:%S %Z")
+
+          mkdir -p data
+          if [ ! -f "$CSV_FILE" ]; then
+            echo "timestamp,pin,value" > "$CSV_FILE"
+          fi
+
+          echo "${TIMESTAMP},${PIN},${RESPONSE}" >> "$CSV_FILE"
+          echo "Logged: ${TIMESTAMP} | ${PIN} = ${RESPONSE}"
+
+      - name: Commit and push updated CSV
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/blynk_log.csv
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore: log Blynk V0 at $(TZ="Australia/Melbourne" date +'%Y-%m-%dT%H:%M:%S %Z')"
+            git push
+          fi
