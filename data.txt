@@ -1,5 +1,5 @@
-Date,09 May 2026
-Compaction,.91
-Density,.95
-Soil,12
-MTDSoil,71
+Date,25 May 2026
+Compaction,0.83
+Density,0.81
+Soil,0.11
+MTDSoil,50
