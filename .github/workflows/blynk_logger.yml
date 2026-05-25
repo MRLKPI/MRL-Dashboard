@@ -28,9 +28,9 @@ jobs:
 
           RESPONSE=$(curl -s "https://${BLYNK_SERVER}/external/api/get?token=${BLYNK_TOKEN}&v0")
           echo "Raw API response: ${RESPONSE}"
-RESPONSE=$(curl -s "https://${BLYNK_SERVER}/external/api/get?token=${BLYNK_TOKEN}&v0")
-echo "Raw API response: ${RESPONSE}"
-echo "Token length: ${#BLYNK_TOKEN}"
+            RESPONSE=$(curl -s "https://${BLYNK_SERVER}/external/api/get?token=${BLYNK_TOKEN}&v0")
+            echo "Raw API response: ${RESPONSE}"
+            echo "Token length: ${#BLYNK_TOKEN}"
           TIMESTAMP=$(TZ="Australia/Melbourne" date +"%Y-%m-%dT%H:%M:%S %Z")
 
           mkdir -p data
