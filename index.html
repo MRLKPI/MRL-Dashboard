@@ -670,7 +670,7 @@
       if (d.date) document.getElementById("v-date").textContent = d.date;
     }
 
-    // ── NDCR Load from CSV ──
+    // ──  Load from CSV ──
     if (csvRes.status === "fulfilled") {
       const allRows  = parseBlynkCSV(csvRes.value);
       const todayRows = filterTodayFrom0545(allRows);
@@ -704,7 +704,7 @@
     setStatus(bothOk, bothOk ? "Updated " + now : "Partial update " + now);
   }
 
-  // Auto-refresh every hour
+  // 
   setInterval(fetchAll, 60 * 60 * 1000);
 </script>
 </body>
