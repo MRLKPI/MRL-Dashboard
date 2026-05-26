@@ -94,7 +94,7 @@
       margin-top: 0.8rem; min-height: 1.2em;
     }
 
-    /* ── Dashboard (hidden until unlocked) ── */
+    /* ── Dashboard ── */
     #dashboard { display: none; }
 
     .page {
@@ -167,7 +167,20 @@
       border: 1px solid #a8a8a8;
       border-radius: 16px;
       padding: 2vh 2vw;
-      display: flex; flex-direction: column; justify-content: center;
+      display: flex;
+      flex-direction: row;
+      align-items: stretch;
+      gap: 1.5vw;
+      overflow: hidden;
+    }
+
+    /* Left part: label + big number + unit */
+    .info-left {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      flex-shrink: 0;
+      min-width: 7vw;
     }
 
     .info-label {
@@ -177,17 +190,44 @@
       display: flex; align-items: center; gap: 8px;
     }
 
-    .blynk-badge {
-      font-size: 0.9vw; color: #0F6E56; background: #b8e8d8;
-      padding: 3px 10px; border-radius: 4px; font-weight: 600;
-      font-family: 'Inter', sans-serif;
-    }
-
     .info-val {
-      font-size: 5.5vw; font-weight: 600; color: #1a1a1a; line-height: 1;
+      font-size: 4.5vw; font-weight: 600; color: #1a1a1a; line-height: 1;
     }
 
     .info-unit { font-size: 1.1vw; color: #555; margin-top: 0.8vh; }
+
+    /* Right part: chart */
+    .info-right {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-width: 0;
+    }
+
+    .chart-title {
+      font-size: 0.85vw; color: #555; margin-bottom: 0.4vh;
+      text-align: center;
+    }
+
+    #ndcr-chart-wrap {
+      width: 100%;
+      flex: 1;
+      min-height: 0;
+    }
+
+    #ndcr-chart {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .chart-no-data {
+      width: 100%; height: 100%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.9vw; color: #888;
+      font-style: italic;
+    }
 
     .date-card {
       background: #b8d8e8;
@@ -273,35 +313,40 @@
   </div>
 
   <div class="bottom-row">
+
+    <!-- NDCR Load card with chart -->
     <div class="info-card">
-      <div class="info-label">
-        NDCR Load
-        <span class="blynk-badge">k</span>
+      <div class="info-left">
+        <div class="info-label">NDCR Load</div>
+        <div class="info-val" id="v-ndcr"><span class="skeleton"></span></div>
+        <div class="info-unit" id="u-ndcr">live reading</div>
       </div>
-      <div class="info-val" id="v-blynk"><span class="skeleton"></span></div>
-      <div class="info-unit" id="u-blynk">live reading</div>
+      <div class="info-right">
+        <div class="chart-title" id="chart-title">Today from 05:45</div>
+        <div id="ndcr-chart-wrap">
+          <!-- SVG chart rendered here -->
+        </div>
+      </div>
     </div>
+
     <div class="date-card">
       <div class="info-label" style="color:#2a5a7a;">Reporting Date</div>
       <div class="date-val" id="v-date"><span class="skeleton"></span></div>
       <div class="info-unit" style="margin-top:0.8vh;font-size:1.1vw;color:#2a5a7a;"></div>
     </div>
+
   </div>
 
 </div>
 </div>
 
 <script>
-  /* ── Config ──────────────────────────────────────────────
-     Change ACCESS_CODE to whatever password you want.
-     SESSION_KEY is the sessionStorage key used to remember
-     the unlock within the same browser tab.
-  ─────────────────────────────────────────────────────── */
+  /* ── Config ── */
   const CONFIG = {
-    ACCESS_CODE:  "MRL2025",
-    SESSION_KEY:  "mrl_unlocked",
-    GITHUB_RAW:   "https://raw.githubusercontent.com/rrafiee62/MRL-Dashboard/main/data.txt",
-    BLYNK_WORKER: "https://mrl-blynk.rzarafiee.workers.dev/",
+    ACCESS_CODE:   "MRL2025",
+    SESSION_KEY:   "mrl_unlocked",
+    GITHUB_RAW:    "https://raw.githubusercontent.com/MRLKPI/MRL-Dashboard/main/data.txt",
+    BLYNK_LOG_CSV: "https://raw.githubusercontent.com/MRLKPI/MRL-Dashboard/main/data/blynk_log.csv",
   };
 
   /* ── Password gate ── */
@@ -326,12 +371,10 @@
     fetchAll();
   }
 
-  /* Allow pressing Enter in the password field */
   document.getElementById("pw-input").addEventListener("keydown", function(e) {
     if (e.key === "Enter") checkPassword();
   });
 
-  /* Auto-unlock if already authenticated this session */
   if (sessionStorage.getItem(CONFIG.SESSION_KEY) === "1") {
     unlock();
   }
@@ -429,6 +472,168 @@
     document.getElementById("stxt").textContent = msg;
   }
 
+  /* ── Parse blynk_log.csv ──
+     Expected format:
+       Time,Value
+       2026-05-26T20:09:01 AEST,4
+       ...
+     Returns array of { ts: Date, value: number }
+  */
+  function parseBlynkCSV(text) {
+    const lines = text.trim().split("\n");
+    const rows = [];
+    // skip header row
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      const commaIdx = line.lastIndexOf(",");
+      if (commaIdx < 0) continue;
+      const timeStr = line.slice(0, commaIdx).trim();
+      const valStr  = line.slice(commaIdx + 1).trim();
+      // Remove timezone label (e.g. " AEST") so Date can parse it
+      const cleanTime = timeStr.replace(/\s+[A-Z]{2,5}$/, "");
+      const ts = new Date(cleanTime);
+      const value = parseFloat(valStr);
+      if (isNaN(ts.getTime()) || isNaN(value)) continue;
+      rows.push({ ts, value });
+    }
+    return rows;
+  }
+
+  /* ── Filter today's rows from 05:45 local time ── */
+  function filterTodayFrom0545(rows) {
+    const now = new Date();
+    // Build today's 05:45:00 in local time
+    const cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 5, 45, 0);
+    return rows.filter(r => r.ts >= cutoff && r.ts.toDateString() === now.toDateString());
+  }
+
+  /* ── Draw SVG line chart ── */
+  function drawLineChart(containerId, rows) {
+    const wrap = document.getElementById(containerId);
+    wrap.innerHTML = "";
+
+    if (!rows || rows.length === 0) {
+      const div = document.createElement("div");
+      div.className = "chart-no-data";
+      div.textContent = "No data from 05:45 today";
+      wrap.appendChild(div);
+      return;
+    }
+
+    const W = wrap.clientWidth  || 260;
+    const H = wrap.clientHeight || 80;
+    const PAD = { top: 8, right: 8, bottom: 22, left: 28 };
+    const cW = W - PAD.left - PAD.right;
+    const cH = H - PAD.top  - PAD.bottom;
+
+    const ns = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    svg.setAttribute("width",  W);
+    svg.setAttribute("height", H);
+    svg.style.display = "block";
+    svg.style.overflow = "visible";
+
+    const times  = rows.map(r => r.ts.getTime());
+    const values = rows.map(r => r.value);
+    const tMin = Math.min(...times),  tMax = Math.max(...times);
+    const vMin = Math.min(...values), vMax = Math.max(...values);
+    const vRange = vMax === vMin ? 1 : vMax - vMin;
+    const tRange = tMax === tMin ? 1 : tMax - tMin;
+
+    function xOf(t) { return PAD.left + ((t - tMin) / tRange) * cW; }
+    function yOf(v) { return PAD.top  + cH - ((v - vMin) / vRange) * cH; }
+
+    // Grid lines (3 horizontal)
+    for (let i = 0; i <= 2; i++) {
+      const yv = vMin + (vRange * i / 2);
+      const yp = yOf(yv);
+      const gl = document.createElementNS(ns, "line");
+      gl.setAttribute("x1", PAD.left); gl.setAttribute("y1", yp);
+      gl.setAttribute("x2", PAD.left + cW); gl.setAttribute("y2", yp);
+      gl.setAttribute("stroke", "#999"); gl.setAttribute("stroke-width", "0.5");
+      gl.setAttribute("stroke-dasharray", "3,3");
+      svg.appendChild(gl);
+
+      // Y-axis labels
+      const yt = document.createElementNS(ns, "text");
+      yt.setAttribute("x", PAD.left - 4); yt.setAttribute("y", yp + 4);
+      yt.setAttribute("font-size", "9"); yt.setAttribute("fill", "#555");
+      yt.setAttribute("text-anchor", "end"); yt.setAttribute("font-family", "Inter, sans-serif");
+      yt.textContent = Math.round(yv);
+      svg.appendChild(yt);
+    }
+
+    // X-axis time labels (first and last)
+    function fmtTime(d) {
+      return d.toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit", hour12: false });
+    }
+    const x0 = rows[0].ts, x1 = rows[rows.length - 1].ts;
+    [[x0, PAD.left, "start"], [x1, PAD.left + cW, "end"]].forEach(([d, xp, anchor]) => {
+      const xt = document.createElementNS(ns, "text");
+      xt.setAttribute("x", xp); xt.setAttribute("y", H - 4);
+      xt.setAttribute("font-size", "9"); xt.setAttribute("fill", "#555");
+      xt.setAttribute("text-anchor", anchor); xt.setAttribute("font-family", "Inter, sans-serif");
+      xt.textContent = fmtTime(d);
+      svg.appendChild(xt);
+    });
+
+    // Filled area under line
+    if (rows.length > 1) {
+      let areaD = `M ${xOf(times[0])} ${PAD.top + cH}`;
+      areaD += ` L ${xOf(times[0])} ${yOf(values[0])}`;
+      for (let i = 1; i < rows.length; i++) {
+        areaD += ` L ${xOf(times[i])} ${yOf(values[i])}`;
+      }
+      areaD += ` L ${xOf(times[times.length - 1])} ${PAD.top + cH} Z`;
+      const area = document.createElementNS(ns, "path");
+      area.setAttribute("d", areaD);
+      area.setAttribute("fill", "rgba(13,42,64,0.12)");
+      area.setAttribute("stroke", "none");
+      svg.appendChild(area);
+    }
+
+    // Line
+    if (rows.length > 1) {
+      let lineD = `M ${xOf(times[0])} ${yOf(values[0])}`;
+      for (let i = 1; i < rows.length; i++) {
+        lineD += ` L ${xOf(times[i])} ${yOf(values[i])}`;
+      }
+      const linePath = document.createElementNS(ns, "path");
+      linePath.setAttribute("d", lineD);
+      linePath.setAttribute("fill", "none");
+      linePath.setAttribute("stroke", "#0d2a40");
+      linePath.setAttribute("stroke-width", "1.8");
+      linePath.setAttribute("stroke-linejoin", "round");
+      linePath.setAttribute("stroke-linecap", "round");
+      svg.appendChild(linePath);
+    }
+
+    // Dots
+    rows.forEach((r, i) => {
+      const cx = xOf(times[i]), cy = yOf(values[i]);
+      const dot = document.createElementNS(ns, "circle");
+      dot.setAttribute("cx", cx); dot.setAttribute("cy", cy);
+      dot.setAttribute("r", rows.length > 40 ? "1.5" : "3");
+      dot.setAttribute("fill", "#0d2a40");
+      svg.appendChild(dot);
+    });
+
+    // Latest value dot highlight
+    const lx = xOf(times[times.length - 1]), ly = yOf(values[values.length - 1]);
+    const hl = document.createElementNS(ns, "circle");
+    hl.setAttribute("cx", lx); hl.setAttribute("cy", ly);
+    hl.setAttribute("r", "4.5");
+    hl.setAttribute("fill", "#E24B4A");
+    hl.setAttribute("stroke", "#fff");
+    hl.setAttribute("stroke-width", "1.5");
+    svg.appendChild(hl);
+
+    wrap.appendChild(svg);
+  }
+
+  /* ── Fetch data.txt from GitHub ── */
   async function fetchData() {
     const res = await fetch(CONFIG.GITHUB_RAW + "?t=" + Date.now());
     if (!res.ok) throw new Error("Failed to fetch data.txt");
@@ -442,19 +647,22 @@
     return data;
   }
 
-  async function fetchBlynk() {
-    const res = await fetch(CONFIG.BLYNK_WORKER);
-    if (!res.ok) throw new Error("Blynk fetch failed");
+  /* ── Fetch blynk_log.csv from GitHub ── */
+  async function fetchBlynkCSV() {
+    const res = await fetch(CONFIG.BLYNK_LOG_CSV + "?t=" + Date.now());
+    if (!res.ok) throw new Error("blynk_log.csv fetch failed");
     return res.text();
   }
 
+  /* ── Main fetch ── */
   async function fetchAll() {
     setStatus(true, "Fetching...");
     const now = new Date().toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit" });
-    const [data, blynk] = await Promise.allSettled([fetchData(), fetchBlynk()]);
+    const [dataRes, csvRes] = await Promise.allSettled([fetchData(), fetchBlynkCSV()]);
 
-    if (data.status === "fulfilled" && data.value) {
-      const d = data.value;
+    // ── Gauge data ──
+    if (dataRes.status === "fulfilled" && dataRes.value) {
+      const d = dataRes.value;
       if (d.compaction) { const v = parseFloat(d.compaction); renderCard("compaction", v, COMPACTION_SEGS, 1,   v.toFixed(2)); }
       if (d.density)    { const v = parseFloat(d.density);    renderCard("density",    v, DENSITY_SEGS,    1,   v.toFixed(2)); }
       if (d.soil)       { const v = parseFloat(d.soil);       renderCard("soil",       v, SOIL_SEGS,     100,   v.toFixed(1)); }
@@ -462,19 +670,41 @@
       if (d.date) document.getElementById("v-date").textContent = d.date;
     }
 
-    if (blynk.status === "fulfilled") {
-      const bv = parseFloat(blynk.value);
-      document.getElementById("v-blynk").textContent = isNaN(bv) ? "—" : Math.round(bv).toString();
-      document.getElementById("u-blynk").textContent = "live reading";
+    // ── NDCR Load from CSV ──
+    if (csvRes.status === "fulfilled") {
+      const allRows  = parseBlynkCSV(csvRes.value);
+      const todayRows = filterTodayFrom0545(allRows);
+
+      if (allRows.length > 0) {
+        // Latest value = last row in the full file
+        const last = allRows[allRows.length - 1];
+        const bv = last.value;
+        document.getElementById("v-ndcr").textContent = isNaN(bv) ? "—" : Math.round(bv).toString();
+        document.getElementById("u-ndcr").textContent = "live reading";
+      } else {
+        document.getElementById("v-ndcr").textContent = "—";
+        document.getElementById("u-ndcr").textContent = "no data";
+      }
+
+      // Draw the chart with today's data from 05:45
+      drawLineChart("ndcr-chart-wrap", todayRows);
+
+      const label = todayRows.length > 0
+        ? `Today from 05:45 (${todayRows.length} pts)`
+        : "Today from 05:45";
+      document.getElementById("chart-title").textContent = label;
+
     } else {
-      document.getElementById("v-blynk").textContent = "—";
-      document.getElementById("u-blynk").textContent = "unavailable";
+      document.getElementById("v-ndcr").textContent = "—";
+      document.getElementById("u-ndcr").textContent = "unavailable";
+      drawLineChart("ndcr-chart-wrap", []);
     }
 
-    const bothOk = data.status === "fulfilled" && blynk.status === "fulfilled";
+    const bothOk = dataRes.status === "fulfilled" && csvRes.status === "fulfilled";
     setStatus(bothOk, bothOk ? "Updated " + now : "Partial update " + now);
   }
 
+  // Auto-refresh every hour
   setInterval(fetchAll, 60 * 60 * 1000);
 </script>
 </body>
